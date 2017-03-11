@@ -13,26 +13,19 @@ void SamplerHandler()
 
 int main()
 {
+	int received_sig, i = 0;
 	timer_t sampling_timer;
 	struct itimerspec timer_period;
 	struct sigevent timer_event;
-	struct timespec delay, delay_rem;
-	int i = 0;
 	
 	// Receiver for SIGALRM signal
-	struct sigaction action;
 	sigset_t set;
 	sigemptyset(&set);
 	sigaddset(&set, SIGALRM);
-	sigprocmask(SIG_BLOCK, &set, NULL);
-	action.sa_handler = SamplerHandler;
-	action.sa_flags = 0;
-	sigprocmask(SIG_UNBLOCK, &set, NULL);
-	sigaction(SIGALRM, &action, NULL);
-	
+	sigprocmask(SIG_BLOCK, &set, NULL);	
 	
 	// Setup the handler
-	timer_event.sigev_notify = SIGEV_SIGNAL;
+	timer_event.sigev_notify = SIGEV_SIGNAL;	
 	timer_event.sigev_signo = SIGALRM;
 	
 	
@@ -48,15 +41,15 @@ int main()
 	
 	// Inicia el timer
 	timer_settime(sampling_timer, 0, &timer_period, NULL);	
-	delay.tv_sec = 0;
-	delay.tv_nsec = 500000000L;
 	
-	for(i =0;i<5;i++)
+	while(i < 10)
 	{
 		printf("i = %d\n",i);
-		nanosleep(&delay, &delay_rem);
+		sigwait(&set, &received_sig);
+		i++;
 	}
-
+	printf("received_sig = %d\n",received_sig);
+	
 	// Se destruye (deshabilita) el timer
 	timer_delete(sampling_timer);
 	printf("Saliendo\n");

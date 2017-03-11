@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
+#include <string.h>
 #include <time.h>
 #include <math.h>
 #include <control.h>
@@ -28,9 +29,13 @@ int main(int argn, char **argv)
 	int usbPort      = 16; //defaults to ttyUSB0
 	char * end;
 	
+	
 	if(!(argn == N_INPUT_ARGS))
 	{
-		printf("This application requires %d input arguments...\nLeaving\n", N_INPUT_ARGS - 1);
+		if(argn == 2 && !strcmp(argv[1], "--help"))
+			printf("This command gets: fileName acqTime sampleTime stepTime usbPortNumber\n");
+		else	
+			printf("This application requires %d input arguments...\nLeaving\n", N_INPUT_ARGS - 1);
 		return 1;
 	}
 	
@@ -78,30 +83,26 @@ int AcquisitionEngine(char *filename, double acqTime, double sTime, double stepT
 	double * timeArray = (double *)malloc(sizeof(double)*nSamples);
 	double * inputData = (double *)malloc(sizeof(double)*nSamples); // store the data that comes throug the serial port
 	double * controlSig= (double *)malloc(sizeof(double)*nSamples);
-	timer_t sampling_timer;
-	struct itimerspec timer_period;
-	struct sigevent timer_event;
-	struct timespec delay, delay_rem;
-	int i;
 	
 	GetStepVector(controlSig, acqTime, sTime, stepTime);
 	
+	int received_sig, i = 0;
+	timer_t sampling_timer;
+	struct itimerspec timer_period;
+	struct sigevent timer_event;
+	
 	// Receiver for SIGALRM signal
-	struct sigaction action;
 	sigset_t set;
 	sigemptyset(&set);
 	sigaddset(&set, SIGALRM);
-	sigprocmask(SIG_BLOCK, &set, NULL);
-	action.sa_handler = SamplerHandler;
-	action.sa_flags = 0;
-	sigprocmask(SIG_UNBLOCK, &set, NULL);
-	sigaction(SIGALRM, &action, NULL);
+	sigprocmask(SIG_BLOCK, &set, NULL);	
 	
 	// Setup the handler
-	timer_event.sigev_notify = SIGEV_SIGNAL;
+	timer_event.sigev_notify = SIGEV_SIGNAL;	
 	timer_event.sigev_signo = SIGALRM;
 	
-	// Se crea el timer
+	
+	// Create the timer
 	timer_create(CLOCK_REALTIME, &timer_event, &sampling_timer);
 	
 	// Se configura el periodo de disparo del timer
@@ -113,13 +114,12 @@ int AcquisitionEngine(char *filename, double acqTime, double sTime, double stepT
 	
 	// Inicia el timer
 	timer_settime(sampling_timer, 0, &timer_period, NULL);	
-	delay.tv_sec = 0;
-	delay.tv_nsec = 500000000L;
 	
-	for(i = 0;i < 5;i++)
+	while(i < 20)
 	{
 		printf("i = %d\n",i);
-		nanosleep(&delay, &delay_rem);
+		sigwait(&set, &received_sig);
+		i++;
 	}
 	
 	free(timeArray);
