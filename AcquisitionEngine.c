@@ -71,22 +71,19 @@ int main(int argn, char **argv)
 
 
 
-void SamplerHandler()
-{
-	printf("Handler activated\n");
-}
-
-
 int AcquisitionEngine(char *filename, double acqTime, double sTime, double stepTime, int usbPort)
 {
-	long nSamples = lround(acqTime/sTime + 1);
+	// acqTime, sTime & stepTime in milliseconds
+	long nSamples = lround(acqTime/sTime) + 1;
+	long sTimeSecs = (long)sTime / 1000;
+	long sTimeNanosecs = (long)round(((sTime/1000)-sTimeSecs) * 1000000000L);
 	double * timeArray = (double *)malloc(sizeof(double)*nSamples);
 	double * inputData = (double *)malloc(sizeof(double)*nSamples); // store the data that comes throug the serial port
 	double * controlSig= (double *)malloc(sizeof(double)*nSamples);
 	
 	GetStepVector(controlSig, acqTime, sTime, stepTime);
 	
-	int received_sig, i = 0;
+	int received_sig, sampleCounter = 0;
 	timer_t sampling_timer;
 	struct itimerspec timer_period;
 	struct sigevent timer_event;
@@ -97,6 +94,8 @@ int AcquisitionEngine(char *filename, double acqTime, double sTime, double stepT
 	sigaddset(&set, SIGALRM);
 	sigprocmask(SIG_BLOCK, &set, NULL);	
 	
+	// Starts dUQx
+	
 	// Setup the handler
 	timer_event.sigev_notify = SIGEV_SIGNAL;	
 	timer_event.sigev_signo = SIGALRM;
@@ -106,22 +105,31 @@ int AcquisitionEngine(char *filename, double acqTime, double sTime, double stepT
 	timer_create(CLOCK_REALTIME, &timer_event, &sampling_timer);
 	
 	// Se configura el periodo de disparo del timer
-	timer_period.it_value.tv_sec     = 1;
-	timer_period.it_value.tv_nsec    = 0;
+	timer_period.it_value.tv_sec     = sTimeSecs;
+	timer_period.it_value.tv_nsec    = sTimeNanosecs;
 	// Los atributos iterval hacen referencia al periodo de deisparo del timer (si son 0 solo ocurre la primera vez)
-	timer_period.it_interval.tv_sec  = 1;
-	timer_period.it_interval.tv_nsec = 0;
+	timer_period.it_interval.tv_sec  = sTimeSecs;
+	timer_period.it_interval.tv_nsec = sTimeNanosecs;
 	
-	// Inicia el timer
+	// Starts the timer
 	timer_settime(sampling_timer, 0, &timer_period, NULL);	
 	
-	while(i < 20)
+	while(sampleCounter < nSamples)
 	{
-		printf("i = %d\n",i);
+		// Gets one sample
+		
+		// Send the step signal
+		
+		printf("i = %d\n",sampleCounter);
 		sigwait(&set, &received_sig);
-		i++;
+		sampleCounter++;
 	}
 	
+	// Saves the info
+	
+	
+	
+	// free the memory of data arrays
 	free(timeArray);
 	free(inputData);
 	free(controlSig);
