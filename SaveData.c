@@ -21,7 +21,7 @@ int SaveData(char * filename,
 	/*Writes plant data into file*/
 	/*The format is: timeArray - ctrlSignal - dataArray*/	
 	for(i = 0; i < dataLength; i++)
-		fprintf(fp,"%f\t%f\%f\n",timeArray[i], ctrlSignal[i], dataArray[i]);	
+		fprintf(fp,"%f\t%f\t%f\n",timeArray[i], ctrlSignal[i], dataArray[i]);	
 		
 	fclose(fp);
 	return 0;
