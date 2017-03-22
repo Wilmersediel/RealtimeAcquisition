@@ -4,9 +4,11 @@
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
+#include <stdint.h>
 #include <math.h>
 #include <control.h>
-
+#include <SaveData.h>
+#include <dUQx.h>
 
 #define N_INPUT_ARGS    6
 #define FILE_NAME_POS   1
@@ -16,6 +18,8 @@
 #define USB_PORT_POS    5
 
 
+uint8_t ch = 0;
+double vref = 0.0;
 
 int AcquisitionEngine(char *filename, double acqTime, double sTime, double stepTime, int usbPort);
 
@@ -70,6 +74,36 @@ int main(int argn, char **argv)
 }
 
 
+int InitDuqx(int usbPort)
+{
+	//Inits dUQx board
+	if(dUQx_Init(usbPort) != 0) //24 -> For /dev/ttyACM0 in linux
+	{			           		//16 -> For /dev/ttyUSB0 in linux
+		printf("Can not connect with dUQx board\n");
+		return 3;
+	}	
+	//Sets 10-bit resolution
+	dUQX_SetResolution(1);
+	
+	//Digital port is configured as output
+	dUQx_ConfigureDigital(0x3ff);
+
+	//Writes 000h number on digital port
+	dUQx_WriteDigital(0x000);
+	//Estimates reference voltage
+	dUQx_CalibrateAnalog(&vref);
+	return 0;
+}
+
+double GetSample()
+{
+	double v;
+	//Reads input analog channel 0
+	dUQx_ReadAnalogSingle(ch,vref,&v);
+	return v;
+}
+
+
 
 int AcquisitionEngine(char *filename, double acqTime, double sTime, double stepTime, int usbPort)
 {
@@ -82,7 +116,7 @@ int AcquisitionEngine(char *filename, double acqTime, double sTime, double stepT
 	double * controlSig= (double *)malloc(sizeof(double)*nSamples);
 	
 	GetStepVector(controlSig, acqTime, sTime, stepTime);
-	
+	GetTimeVector(timeArray, acqTime, sTime);
 	int received_sig, sampleCounter = 0;
 	timer_t sampling_timer;
 	struct itimerspec timer_period;
@@ -95,7 +129,9 @@ int AcquisitionEngine(char *filename, double acqTime, double sTime, double stepT
 	sigprocmask(SIG_BLOCK, &set, NULL);	
 	
 	// Starts dUQx
-	
+	if(InitDuqx(usbPort) == 3)
+		return 3;
+		
 	// Setup the handler
 	timer_event.sigev_notify = SIGEV_SIGNAL;	
 	timer_event.sigev_signo = SIGALRM;
@@ -117,17 +153,21 @@ int AcquisitionEngine(char *filename, double acqTime, double sTime, double stepT
 	while(sampleCounter < nSamples)
 	{
 		// Gets one sample
-		
+		inputData[sampleCounter] = GetSample();
+		printf("inputData[%d] = %lf\n",sampleCounter,inputData[sampleCounter]);
 		// Send the step signal
-		
-		printf("i = %d\n",sampleCounter);
+		dUQx_WriteDigital((uint16_t)controlSig[sampleCounter]);
 		sigwait(&set, &received_sig);
 		sampleCounter++;
 	}
+	printf("sampleCounter = %d\n",sampleCounter);
 	
-	// Saves the info
+	// Saves the info with sampleCounter to avoid storing garbage
+	if(SaveData(filename, timeArray, controlSig, inputData, sampleCounter) == 1)
+		return 4;  //a problem has occurred while saving the file
 	
-	
+	//Closes dUQx
+	dUQx_End();
 	
 	// free the memory of data arrays
 	free(timeArray);
@@ -136,6 +176,7 @@ int AcquisitionEngine(char *filename, double acqTime, double sTime, double stepT
 	
 	// Disable/destroy timer
 	timer_delete(sampling_timer);
+	printf("Bye\n");
 	return 0;
 }
 
