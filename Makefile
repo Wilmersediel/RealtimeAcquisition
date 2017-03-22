@@ -1,14 +1,20 @@
 .PHONY: all clean
 
-all: AcquisitionEngine.c
-	gcc -Wall -o plant -I./include/ ./dUQx.c ./include/RS-232/rs232.c \
-	AcquisitionEngine.c control.c -lrt -lm 
+OBJS = SaveData.o control.o
 
-example: timer_example.c
-	gcc -g -Wall -o timer_test timer_example.c -lrt
+all: AcquisitionEngine.c ${OBJS}
+	gcc -Wall -o plant -I./include/ ./dUQx.c ./include/RS-232/rs232.c \
+	AcquisitionEngine.c ${OBJS} -lrt -lm 
+
+SaveData.o: SaveData.c
+	gcc -Wall -c -I./include/ -o SaveData.o SaveData.c
+
+control.o: control.c
+	gcc -Wall -c -I./include/ -o control.o control.c
+
 
 clean:
-	rm plant
+	rm plant ${OBJS}
 
 
 
